@@ -1,7 +1,5 @@
-// Supabase 대시보드 → Project Settings → API 에서 복사해서 붙여넣으세요.
-// anon(public) 키는 브라우저에 공개돼도 되는 키예요. service_role 키는 절대 넣지 마세요.
 window.SUMGIL_CONFIG = {
-  supabaseUrl: "",      // 예: "https://abcdefghijkl.supabase.co"
-  supabaseAnonKey: "",  // 예: "eyJhbGciOiJIUzI1NiIs..."
+  supabaseUrl: "https://omlorqadtfhuimomlcfk.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tbG9ycWFkdGZodWltb21sY2ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2NzE1NTAsImV4cCI6MjEwOTI0NzU1MH0.dz4i3le40gFDkRxZvjEawCBfk2QYS3itWlt3ps2JTps",
   channel: "uou-campus"
 };
