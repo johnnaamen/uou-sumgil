@@ -268,7 +268,7 @@ let cam={x:0,y:0,z:.5},fit=false;
 cv.addEventListener("pointerdown",e=>{const r=cv.getBoundingClientRect();const wx=(e.clientX-r.left)/cam.z+cam.x,wy=(e.clientY-r.top)/cam.z+cam.y;
   const hit=POLY.find(b=>b.n&&!b.dim&&(pip(wx,wy,b.p)||pip(wx,wy+RH(b),b.p)));
   if(hit){enterRoom(hit);return}
-  me.tx=wx;me.ty=wy;fx.push({t:"ring",x:me.tx,y:me.ty,l:0,L:.5})});
+  me.tx=wx;me.ty=wy;pushP();fx.push({t:"ring",x:me.tx,y:me.ty,l:0,L:.5})});
 cv.addEventListener("pointermove",e=>{const r=cv.getBoundingClientRect();const wx=(e.clientX-r.left)/cam.z+cam.x,wy=(e.clientY-r.top)/cam.z+cam.y;
   hoverB=POLY.find(b=>b.n&&!b.dim&&(pip(wx,wy,b.p)||pip(wx,wy+RH(b),b.p)))||null;cv.style.cursor=hoverB?"zoom-in":"pointer"});
 let hoverB=null;
@@ -290,8 +290,8 @@ function stepNPC(n,dt){if(n.fixed){n.mv=0;return}if(n.wait>0){n.wait-=dt;n.mv=0;
 
 // ===== live =====
 let room=null,db=null,reports=[],peers=[];const mine=new Set();let lastP=0;const motion=new Map();
-function pushP(){room&&room.presence({x:Math.round(me.x),y:Math.round(me.y),nick:nick.slice(0,10),st:me.st,say:me.say.slice(0,30),sayAt:me.sayAt,col:me.col,acc:me.acc,emo:me.emo,emoAt:me.emoAt,jAt:me.jAt,
-  in:R3.on?R3.name:null,px:R3.on?+R3.me.x.toFixed(2):0,pz:R3.on?+R3.me.z.toFixed(2):0,ry:R3.on?+R3.me.yaw.toFixed(2):0,act:R3.lastAct||null}).catch(()=>{})}
+function pushP(){room&&room.presence({x:Math.round(me.x),y:Math.round(me.y),nick:nick.slice(0,10),st:me.st,say:me.say.slice(0,30),sayAt:me.sayAt,col:me.col,acc:me.acc,emo:me.emo,emoAt:me.emoAt,jAt:me.jAt,tx:!R3.on&&me.tx!=null?Math.round(me.tx):null,ty:!R3.on&&me.ty!=null?Math.round(me.ty):null,
+  tx3:R3.on&&R3.me?+R3.me.tx.toFixed(2):null,tz3:R3.on&&R3.me?+R3.me.tz.toFixed(2):null,in:R3.on?R3.name:null,px:R3.on?+R3.me.x.toFixed(2):0,pz:R3.on?+R3.me.z.toFixed(2):0,ry:R3.on?+R3.me.yaw.toFixed(2):0,act:R3.lastAct||null}).catch(()=>{})}
 const myPeer=()=>{const p=room&&room.peers().find(q=>q.sameTab);return p?p.peer:null};
 (async()=>{try{room=await window.claude?.use("room")}catch(e){room=null}
   if(room){room.onPeers(ch=>{peers=ch.peers;updLive()},()=>{room=null;updLive()});pushP();updLive()}})();
@@ -325,8 +325,13 @@ function activeReports(){const now=Date.now();let rs=reports.filter(r=>now-r.ts<
 function everyone(){
   const list=[{...me,nick,you:1}];
   for(const p of peers){if(p.sameTab||p.kind!=="viewer")continue;const q=p.presence||{};if(typeof q.x!=="number"||q.in)continue;
-    const x=+q.x,y=+q.y;let m=motion.get(p.peer);if(!m){m={x,y,walk:0,mv:0,face:1,last:0};motion.set(p.peer,m)}
-    const d=Math.hypot(x-m.x,y-m.y);if(d>.5){m.walk+=d;m.mv=1;m.last=performance.now();if(Math.abs(x-m.x)>.3)m.face=Math.sign(x-m.x)}else if(performance.now()-m.last>180)m.mv=0;m.x=x;m.y=y;if(m.rx==null){m.rx=x;m.ry=y}m.rx+=(x-m.rx)*.25;m.ry+=(y-m.ry)*.25;
+    const x=+q.x,y=+q.y,qtx=typeof q.tx==="number"?q.tx:null,qty=typeof q.ty==="number"?q.ty:null,nw=performance.now();let m=motion.get(p.peer);
+    if(!m){m={rx:x,ry:y,qx:x,qy:y,tx:null,ty:null,walk:0,mv:0,face:1,lt:nw,key:""};motion.set(p.peer,m)}
+    const mk=x+","+y+","+qtx+","+qty;if(mk!==m.key){m.key=mk;m.qx=x;m.qy=y;m.tx=qtx;m.ty=qty;if(qtx!=null&&Math.hypot(x-m.rx,y-m.ry)>80){m.rx=x;m.ry=y}}
+    const dt2=Math.min(.05,(nw-m.lt)/1000);m.lt=nw;const ox=m.rx,oy=m.ry;
+    if(m.tx!=null){const dx=m.tx-m.rx,dy=m.ty-m.ry,dd=Math.hypot(dx,dy);if(dd<4){m.tx=null}else{const o={x:m.rx,y:m.ry},s=Math.min(dd,170*dt2);if(!moveTo(o,o.x+dx/dd*s,o.y+dy/dd*s))m.tx=null;m.rx=o.x;m.ry=o.y}}
+    else{m.rx+=(m.qx-m.rx)*.2;m.ry+=(m.qy-m.ry)*.2}
+    const md=Math.hypot(m.rx-ox,m.ry-oy);if(md>.05){m.mv=1;m.walk+=md;if(Math.abs(m.rx-ox)>.05)m.face=Math.sign(m.rx-ox)}else m.mv=0;
     list.push({x:m.rx,y:m.ry,nick:String(q.nick||"익명").slice(0,10),st:String(q.st||"walk"),say:String(q.say||"").slice(0,30),sayAt:+q.sayAt||0,col:(+q.col|0)%8,acc:(+q.acc|0)%6,
       emo:EMOS.includes(q.emo)?q.emo:"",emoAt:+q.emoAt||0,jAt:+q.jAt||0,walk:m.walk,mv:m.mv,face:m.face,h:hue(String(q.nick||"")),idle:Date.now()-p.updatedAt>5*60e3})}
   if($("npcT").checked)for(const n of NPC)list.push({...n,npc:1});
@@ -342,7 +347,7 @@ function renderZones(all,act){
     const a=document.createElement("span");a.className="zname";a.textContent=z.n;
     const m=document.createElement("span");m.className="zmeta";m.textContent=`${z.ppl}명`+(z.rs?` · 연기 신고 ${z.rs}`:"")+(z.rc?` · 북적 신고 ${z.rc}`:"");
     const p=document.createElement("span");p.className="pill "+z.st;p.textContent=L[z.st];li.append(a,p,m);
-    const go=()=>{me.tx=z.x;me.ty=z.y;fit=false;$("fitBtn").textContent="전체 보기"};
+    const go=()=>{me.tx=z.x;me.ty=z.y;pushP();fit=false;$("fitBtn").textContent="전체 보기"};
     li.onclick=go;li.onkeydown=e=>{if(e.key==="Enter")go()};ul.append(li)}
   $("npcInfo").textContent=$("npcT").checked?"(점선 = 예시)":"";
 }
@@ -648,14 +653,14 @@ function click3(e){const r=cv3.getBoundingClientRect();const v=new THREE.Vector2
   if(hit&&hit.object.userData.ent){openPop(hit.object.userData.ent,e.clientX-r.left,e.clientY-r.top);return}
   $("pop").hidden=true;
   const gp=ray.intersectObject(world3.getObjectByName("ground"),false)[0];
-  if(gp){R3.me.tx=gp.point.x;R3.me.tz=gp.point.z;R3.pending=null;ring3(gp.point.x,gp.point.z)}}
+  if(gp){R3.me.tx=gp.point.x;R3.me.tz=gp.point.z;R3.pending=null;pushP();ring3(gp.point.x,gp.point.z)}}
 function openPop(t,x,y){const p=$("pop");p.innerHTML="";const s=document.createElement("strong");s.textContent=t.nick+(t.npc?" (예시)":"");p.append(s);
   const row=document.createElement("div");row.className="row";
   for(const [k,ic,l] of ACTS){if(k==="dance")continue;const b=document.createElement("button");b.type="button";b.textContent=ic+" "+l;b.onclick=()=>doAct(k,t);row.append(b)}
   p.append(row);p.hidden=false;p.style.left=Math.max(120,Math.min(cv3.clientWidth-120,x))+"px";p.style.top=Math.max(150,y-14)+"px"}
 function doAct(k,t){$("pop").hidden=true;const m=R3.me;if(!m)return;
   if(!t&&(k==="bonk"||k==="five"||k==="bow")){let bd=3.2;for(const e of allEnts()){if(e.me)continue;const d=Math.hypot(e.x-m.x,e.z-m.z);if(d<bd){bd=d;t=e}}}
-  if(t){const d=Math.hypot(t.x-m.x,t.z-m.z);if(d>1.8){const ux=(m.x-t.x)/d,uz=(m.z-t.z)/d;m.tx=t.x+ux*1.3;m.tz=t.z+uz*1.3;R3.pending={k,t};return}}
+  if(t){const d=Math.hypot(t.x-m.x,t.z-m.z);if(d>1.8){const ux=(m.x-t.x)/d,uz=(m.z-t.z)/d;m.tx=t.x+ux*1.3;m.tz=t.z+uz*1.3;R3.pending={k,t};pushP();return}}
   perform(m,k,t?t.key:null,true)}
 function perform(e,k,toKey,mine){const t=findEnt(toKey);if(t&&t!==e)e.yaw=Math.atan2(t.x-e.x,t.z-e.z);
   e.act={k,s:performance.now(),to:toKey,fired:false};
@@ -681,7 +686,7 @@ const lerpA=(a,b,k)=>{let d=((b-a+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Ma
 function clamp3(x,z){const r=Math.hypot(x,z);if(r>18){x*=18/r;z*=18/r}if(Math.abs(x)<R3.bw/2+.5&&z<-7.3)z=-7.3;return[x,z]}
 function animEnt(e,dt,now){
   const dx=e.tx-e.x,dz=e.tz-e.z,d=Math.hypot(dx,dz);e.mv=0;
-  if(d>.05&&!(e.act&&e.act.k!=="dance"&&!e.me)){const s=Math.min(d,(e.me?3.6:e.npc?1.3:4.2)*dt);let [nx,nz]=clamp3(e.x+dx/d*s,e.z+dz/d*s);
+  if(d>.05&&!(e.act&&e.act.k!=="dance"&&!e.me)){const s=Math.min(d,(e.me||!e.npc?3.6:1.3)*dt);let [nx,nz]=clamp3(e.x+dx/d*s,e.z+dz/d*s);
     const mv=Math.hypot(nx-e.x,nz-e.z);if(mv<s*.3&&e.me){e.tx=e.x;e.tz=e.z}e.x=nx;e.z=nz;e.walk+=mv;if(mv>.002){e.mv=1;e.yaw=lerpA(e.yaw,Math.atan2(dx,dz),Math.min(1,dt*12))}}
   else if(e.ryT!=null&&!e.act)e.yaw=lerpA(e.yaw,e.ryT,Math.min(1,dt*8));
   const av=e.av;let lax=0,rax=0,laz=0,raz=0,lean=0,bob=0,spin=0,ham=false;
@@ -727,7 +732,9 @@ function update3(dt,act){
     if(e&&(e.col!==col||e.acc!==acc)){dropEnt(e);R3.peerE.delete(p.peer);e=null}
     const px=+q.px||0,pz=+q.pz||0;
     if(!e){e=makeEnt({key:p.peer,nick:"",col,acc,x:px,z:pz,yaw:+q.ry||0});R3.peerE.set(p.peer,e)}
-    Object.assign(e,{nick:String(q.nick||"익명").slice(0,10),tx:px,tz:pz,ryT:+q.ry||0,say:String(q.say||"").slice(0,30),sayAt:+q.sayAt||0,emo:EMOS.includes(q.emo)?q.emo:"",emoAt:+q.emoAt||0,st:String(q.st||""),jAt:+q.jAt||0});
+    const ttx=typeof q.tx3==="number"?q.tx3:px,ttz=typeof q.tz3==="number"?q.tz3:pz,qk=px+","+pz+","+ttx+","+ttz;
+    if(e.qk!==qk){e.qk=qk;if(Math.hypot(e.x-px,e.z-pz)>3){e.x=px;e.z=pz}}
+    Object.assign(e,{nick:String(q.nick||"익명").slice(0,10),tx:ttx,tz:ttz,ryT:+q.ry||0,say:String(q.say||"").slice(0,30),sayAt:+q.sayAt||0,emo:EMOS.includes(q.emo)?q.emo:"",emoAt:+q.emoAt||0,st:String(q.st||""),jAt:+q.jAt||0});
     const a=q.act;if(a&&typeof a==="object"&&+a.at>(R3.seenAct.get(p.peer)||0)){R3.seenAct.set(p.peer,+a.at);if(Date.now()-a.at<4000&&ACTK.includes(a.t))perform(e,a.t,typeof a.to==="string"?a.to:null,false)}}
   for(const [k,e] of R3.peerE)if(!seen.has(k)){dropEnt(e);R3.peerE.delete(k)}
   for(const e of R3.ents)if(e.npc&&!e.act){e.wait-=dt;if(e.wait<0){e.wait=2+Math.random()*4;
@@ -747,7 +754,8 @@ function update3(dt,act){
   rd.render(sc3,cam3);
   for(const e of allEnts())label3(e);
   const n=allEnts().length;$("cnt3").textContent=`${n}명 모여 있어요`+(R3.nearSmoke?` · 연기 신고 ${R3.nearSmoke}`:"");
-  if(m.mv&&now-lastP>80){lastP=now;pushP()}
+  if(m.mv&&(R3.kx||R3.ky)&&now-lastP>500){lastP=now;pushP()}
+  if(!m.mv&&m.wasMv)pushP();m.wasMv=m.mv;
 }
 
 const DIRS=["동","남동","남","남서","서","북서","북","북동"];
@@ -766,7 +774,8 @@ function loop(t){
     if(!moveTo(me,me.x+vx/m*s,me.y+vy/m*s)&&me.tx!=null)me.tx=null;
     const d=Math.hypot(me.x-ox,me.y-oy);if(d>0){me.mv=1;me.walk+=d;if(Math.abs(me.x-ox)>.05)me.face=Math.sign(me.x-ox);
       if(t-dustT>140){dustT=t;fx.push({t:"dust",x:me.x-me.face*5,y:me.y+10,l:0,L:.5})}
-      if(t-lastP>60){lastP=t;pushP()}}}
+      if(me.tx==null&&t-lastP>500){lastP=t;pushP()}}}
+  if(!R3.on){if(!me.mv&&me.wasMv)pushP();me.wasMv=me.mv}
   if($("npcT").checked)for(const n of NPC)stepNPC(n,dt);
   const all=everyone(),act=activeReports();
   if(R3.on)update3(dt,act);else draw(all,act,t);
